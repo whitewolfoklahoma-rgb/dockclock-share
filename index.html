@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DockClock — Dock Scheduling &amp; Detention Tracking</title>
+<style>
+:root{
+  --ink:#17222b; --muted:#5b6b76; --line:#cfd9de; --bg:#f2f5f6; --card:#ffffff;
+  --accent:#0f6a4a; --accent2:#0b4f6c; --amber:#b97a0c; --amberbg:#fdf3e0;
+  --red:#b3261e; --redbg:#fdeceb; --greenbg:#e7f4ec; --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom)}
+header.topbar{background:var(--accent2);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header.topbar .brand{font-size:22px;font-weight:800;letter-spacing:.3px}
+header.topbar .fac{font-size:14px;opacity:.92}
+header.topbar .now{margin-left:auto;font-size:14px;opacity:.92;text-align:right}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;min-height:48px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+button.blue{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:700}
+button.danger{background:#fff;border-color:var(--red);color:var(--red);font-weight:700}
+button.big{font-size:17px;padding:13px 18px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.mic{flex:0 0 48px;min-width:48px;min-height:48px;font-size:18px;background:#eef3f6;padding:0}
+button.mic.listening{background:var(--redbg);border-color:var(--red)}
+#tellBtn{background:#ffb020;border-color:#ffb020;color:#231a00;font-weight:800}
+nav#tabbar{display:flex;gap:6px;padding:8px 10px;background:#e7edf0;position:sticky;top:0;z-index:20;overflow-x:auto}
+nav#tabbar button{flex:1 0 auto;font-weight:700;border-radius:999px;padding:10px 14px;white-space:nowrap}
+nav#tabbar button.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
+main{max-width:1100px;margin:0 auto;padding:12px}
+.view{display:none}
+.view.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+.stat .k{font-size:13px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.stat .v{font-size:26px;font-weight:800;margin-top:2px}
+.stat .s{font-size:13px;color:var(--muted)}
+.doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.door{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+.door h3{margin:0 0 8px;font-size:19px}
+.appt{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:#fbfcfc}
+.appt.active{border-width:2px}
+.appt .who{font-weight:800;font-size:17px}
+.appt .meta{font-size:14px;color:var(--muted)}
+.appt .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.clock{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700}
+.pill.grace{background:var(--greenbg);color:var(--accent)}
+.pill.soon{background:var(--amberbg);color:var(--amber)}
+.pill.accrue{background:var(--redbg);color:var(--red)}
+.pill.done{background:#e7edf0;color:var(--muted)}
+.pill.sched{background:#e7edf0;color:var(--accent2)}
+.money{color:var(--red);font-weight:800}
+label{display:block;font-weight:700;font-size:14px;margin:10px 0 4px}
+input[type=text],input[type=number],input[type=tel],input[type=date],input[type=time],input[type=datetime-local],select,textarea{
+  width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;min-height:48px}
+textarea{min-height:74px}
+.fieldrow{display:flex;gap:8px;align-items:stretch}
+.fieldrow>*:first-child{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.toolbar .sp{flex:1}
+.weekstrip{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.weekstrip button{flex:1 0 90px}
+.weekstrip button.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:15px;vertical-align:top}
+th{background:#eef3f6;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:var(--radius);padding:18px;text-align:center;color:var(--muted)}
+.modalWrap{position:fixed;inset:0;background:rgba(20,26,31,.82);display:none;align-items:flex-start;justify-content:center;z-index:60;padding:12px;overflow:auto}
+.modalWrap.open{display:flex}
+.modal{background:#fff;width:100%;max-width:640px;border-radius:12px;padding:18px;margin:auto 0}
+.modal h2{margin-top:0}
+.checkline{display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.checkline input{width:24px;height:24px;flex:0 0 24px;margin-top:2px}
+#termsText{font-size:13.5px;line-height:1.55;border:1px solid var(--line);border-radius:8px;padding:12px;max-height:38vh;overflow:auto;background:#fbfcfc}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));background:#17222b;color:#fff;border-radius:10px;padding:12px 16px;display:none;z-index:80;max-width:92vw;box-shadow:0 4px 18px rgba(0,0,0,.3);pointer-events:none}
+#toast.show{display:flex;gap:12px;align-items:center}
+#toast button{min-height:40px;padding:6px 12px;pointer-events:auto}
+details.help{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+details.help summary{font-weight:800;cursor:pointer;min-height:32px}
+.voiceNote{font-size:13px;color:var(--amber);display:none;margin-top:4px}
+.voiceNote.show{display:block}
+footer{color:var(--muted);font-size:13px;text-align:center;padding:18px 10px 26px}
+#printArea{display:none}
+@media print{
+  body>*{display:none !important}
+  body>#printArea{display:block !important;color:#000;font-size:14px}
+  #printArea h1{font-size:20px} #printArea table{border:1px solid #000}
+  #printArea th,#printArea td{border-bottom:1px solid #999}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="brand">🚛 DockClock</div>
+    <div class="fac" id="facName">Your Facility</div>
+  </div>
+  <div class="now" id="nowClock"></div>
+  <button type="button" id="tellBtn" class="big">🎙️ Tell DockClock</button>
+</header>
+
+<nav id="tabbar" aria-label="Main views">
+  <button type="button" data-tab="board" class="active">Door Board</button>
+  <button type="button" data-tab="calendar">Calendar</button>
+  <button type="button" data-tab="log">Log</button>
+  <button type="button" data-tab="analytics">Numbers</button>
+  <button type="button" data-tab="settings">Settings</button>
+  <button type="button" data-tab="help">Help</button>
+</nav>
+
+<main>
+  <!-- ============ BOARD ============ -->
+  <section class="view active" id="view-board">
+    <div class="cards" id="boardCards"></div>
+    <div class="toolbar">
+      <h2 style="margin:0">Today at the doors</h2>
+      <div class="sp"></div>
+      <button type="button" class="primary big" data-act="add-appt">+ Book appointment</button>
+    </div>
+    <div id="boardDoors"></div>
+  </section>
+
+  <!-- ============ CALENDAR ============ -->
+  <section class="view" id="view-calendar">
+    <div class="toolbar">
+      <button type="button" data-act="cal-prev">◀ Prev day</button>
+      <button type="button" data-act="cal-today">Today</button>
+      <button type="button" data-act="cal-next">Next day ▶</button>
+      <div class="sp"></div>
+      <label style="margin:0" for="calDate">Date</label>
+      <input type="date" id="calDate" style="width:auto">
+      <button type="button" class="primary" data-act="add-appt">+ Book appointment</button>
+    </div>
+    <div class="weekstrip" id="weekStrip"></div>
+    <div id="calendarList"></div>
+  </section>
+
+  <!-- ============ LOG ============ -->
+  <section class="view" id="view-log">
+    <div class="toolbar">
+      <h2 style="margin:0">Appointment log</h2>
+      <div class="sp"></div>
+      <button type="button" data-act="export-csv">⬇ Export CSV</button>
+    </div>
+    <div class="grid2">
+      <div>
+        <label for="logSearch">Search (carrier, driver, PO / ref)</label>
+        <div class="fieldrow"><input type="text" id="logSearch" placeholder="Type to filter"><button type="button" class="mic" data-mic-for="logSearch" aria-label="Dictate search">🎤</button></div>
+        <div class="voiceNote" data-note-for="logSearch">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="logStatus">Status</label>
+        <select id="logStatus">
+          <option value="">All statuses</option>
+          <option value="scheduled">Booked, not here yet</option>
+          <option value="arrived">Checked in (yard)</option>
+          <option value="atdoor">At the door</option>
+          <option value="departed">Gone (checked out)</option>
+        </select>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px">
+      <strong>Carrier week packet</strong> — one printable packet of a carrier's finished loads for a week, with the detention math.
+      <div class="grid2">
+        <div><label for="packetCarrier">Carrier</label><select id="packetCarrier"></select></div>
+        <div><label for="packetWeek">Week of (any date in the week)</label><input type="date" id="packetWeek"></div>
+      </div>
+      <div class="toolbar"><button type="button" class="blue" data-act="carrier-packet">🖨 Print carrier week packet</button></div>
+    </div>
+    <div id="logList" style="margin-top:10px"></div>
+  </section>
+
+  <!-- ============ ANALYTICS ============ -->
+  <section class="view" id="view-analytics">
+    <div class="toolbar">
+      <h2 style="margin:0">The numbers</h2>
+      <div class="sp"></div>
+      <button type="button" data-act="period-today" id="perTodayBtn">Today</button>
+      <button type="button" data-act="period-week" id="perWeekBtn" class="blue">This week</button>
+    </div>
+    <div class="cards" id="analyticsCards"></div>
+    <h3>Carriers — who waits the longest</h3>
+    <div id="carrierStats"></div>
+    <h3>Doors — average turn time</h3>
+    <div id="doorStats"></div>
+    <h3>Week over week — detention dollars</h3>
+    <div id="weekCompare"></div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section class="view" id="view-settings">
+    <h2 style="margin-top:4px">Settings</h2>
+    <div>
+      <label for="setFacility">Facility name</label>
+      <div class="fieldrow"><input type="text" id="setFacility" placeholder="e.g. Prairie Gate Distribution Center"><button type="button" class="mic" data-mic-for="setFacility" aria-label="Dictate facility name">🎤</button></div>
+      <div class="voiceNote" data-note-for="setFacility">Voice isn't available on this device/browser — typing works as always.</div>
+    </div>
+    <h3>Dock doors</h3>
+    <div id="doorList"></div>
+    <label for="newDoor">New door name</label>
+    <div class="fieldrow"><input type="text" id="newDoor" placeholder="e.g. Door 5"><button type="button" class="mic" data-mic-for="newDoor" aria-label="Dictate door name">🎤</button></div>
+    <div class="voiceNote" data-note-for="newDoor">Voice isn't available on this device/browser — typing works as always.</div>
+    <div class="toolbar"><button type="button" data-act="add-door">+ Add door</button></div>
+    <h3>Detention rules (house rules)</h3>
+    <div class="grid2">
+      <div>
+        <label for="setGrace">Free grace period (minutes)</label>
+        <div class="fieldrow"><input type="number" id="setGrace" min="0" max="10080" step="1"><button type="button" class="mic" data-mic-for="setGrace" aria-label="Dictate grace minutes">🎤</button></div>
+        <div class="voiceNote" data-note-for="setGrace">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="setRate">Detention rate ($ per hour or part-hour after grace)</label>
+        <div class="fieldrow"><input type="number" id="setRate" min="0" max="100000" step="0.01"><button type="button" class="mic" data-mic-for="setRate" aria-label="Dictate detention rate">🎤</button></div>
+        <div class="voiceNote" data-note-for="setRate">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin:4px 0">How the money math works: detention time = time from check-in to check-out, minus the grace period. What's left is rounded <strong>up</strong> to the next full hour and charged at the rate above. A single load can carry its own grace/rate on its appointment (edit the appointment) when a contract differs.</p>
+    <div>
+      <label for="setBillTo">Default "billed to" for new appointments</label>
+      <div class="fieldrow"><input type="text" id="setBillTo" placeholder="e.g. Carrier"><button type="button" class="mic" data-mic-for="setBillTo" aria-label="Dictate default billed to">🎤</button></div>
+      <div class="voiceNote" data-note-for="setBillTo">Voice isn't available on this device/browser — typing works as always.</div>
+    </div>
+    <h3>Per-carrier rule overrides</h3>
+    <p style="color:var(--muted);font-size:14px;margin:4px 0">If one carrier's contract has different detention terms, add them here. Their loads use these numbers instead of the house rules.</p>
+    <div id="ruleList"></div>
+    <div class="grid2">
+      <div>
+        <label for="ruleCarrier">Carrier name</label>
+        <div class="fieldrow"><input type="text" id="ruleCarrier" placeholder="Carrier name, spelled like on appointments"><button type="button" class="mic" data-mic-for="ruleCarrier" aria-label="Dictate carrier name">🎤</button></div>
+        <div class="voiceNote" data-note-for="ruleCarrier">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="ruleGrace">Grace (minutes)</label>
+        <div class="fieldrow"><input type="number" id="ruleGrace" min="0" max="10080" step="1"><button type="button" class="mic" data-mic-for="ruleGrace" aria-label="Dictate carrier grace">🎤</button></div>
+        <div class="voiceNote" data-note-for="ruleGrace">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="ruleRate">Rate ($/hour)</label>
+        <div class="fieldrow"><input type="number" id="ruleRate" min="0" max="100000" step="0.01"><button type="button" class="mic" data-mic-for="ruleRate" aria-label="Dictate carrier rate">🎤</button></div>
+        <div class="voiceNote" data-note-for="ruleRate">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+    </div>
+    <div class="toolbar"><button type="button" data-act="add-rule">+ Add carrier rule</button></div>
+    <div class="toolbar">
+      <button type="button" class="primary big" data-act="save-settings">Save settings</button>
+    </div>
+    <h3>Sample data &amp; your data</h3>
+    <div class="toolbar">
+      <button type="button" data-act="load-demo">Load sample day</button>
+      <button type="button" data-act="clear-demo">Clear sample data</button>
+      <button type="button" data-act="export-backup">⬇ Backup (JSON)</button>
+      <button type="button" data-act="import-backup">⬆ Restore backup</button>
+      <input type="file" id="backupFile" accept=".json,application/json" style="display:none">
+      <button type="button" class="danger" data-act="reset-all">Erase everything</button>
+    </div>
+    <p style="color:var(--muted);font-size:14px">Your data lives only on this device, in this browser. Use Backup to move it or keep a copy. Erase everything removes all appointments, settings, and notes from this device — there is no undo for that one, so back up first if you might want it back.</p>
+  </section>
+
+  <!-- ============ HELP ============ -->
+  <section class="view" id="view-help">
+    <h2 style="margin-top:4px">Help</h2>
+    <details class="help"><summary>Book an appointment</summary>
+      <p>Tap <strong>+ Book appointment</strong> on the Door Board or Calendar. Fill in the carrier, driver, date and time, and the door. Everything else is optional but helps later: a phone number, the load type (inbound or outbound), and the PO or reference number are what make the evidence packet strong. Save, and the appointment shows on the board for its day.</p></details>
+    <details class="help"><summary>Check a truck in and out</summary>
+      <p>When the truck hits the yard, tap <strong>Check in</strong> on its appointment — that stamps the arrival time and starts its clock. When it backs into the door, tap <strong>At door</strong>. When it pulls out, tap <strong>Check out</strong> — DockClock does the detention math on the spot and shows you the charge before you confirm. Wrong time? Edit the appointment and fix the timestamps; every screen and total updates from the same record.</p></details>
+    <details class="help"><summary>Tell DockClock (voice entry)</summary>
+      <p>Tap <strong>Tell DockClock</strong> at the top — one tap and it's listening (on devices that support voice). Say things like <em>"check in Johnson door four"</em>, <em>"start unload door two"</em>, <em>"check out Johnson"</em>, or <em>"book Ozark Freight tomorrow at 8 am door two driver Sam Reed inbound"</em>. You always see a plain-words confirmation before anything is saved. If it can't understand a sentence, your exact words are kept as a note in the Tell screen — nothing is ever dropped or guess-saved. Voice needs a device/browser with speech recognition; typing the same sentences works exactly the same.</p></details>
+    <details class="help"><summary>The detention money clock</summary>
+      <p>Every checked-in truck runs a clock from its check-in time. Your free grace period and hourly rate live in Settings (and a load or carrier can carry its own terms when a contract differs). The clock is green inside grace, amber in the last 30 minutes of grace, and red once money is accruing. At check-out, time past grace is rounded up to the next full hour and charged at the rate — the math is printed line by line on the evidence packet.</p></details>
+    <details class="help"><summary>Print an evidence packet (bill-back proof)</summary>
+      <p>On any finished load, tap <strong>Packet</strong>. You get a printable page with the appointment, every timestamp, the grace/rate rules that applied, and the charge math — the document that goes with the invoice when you bill a carrier or shipper back. In the Log you can also print a <strong>carrier week packet</strong>: all of one carrier's finished loads for a week on one packet. Printing a packet marks that load's detention as "captured" in the Numbers view; finished loads with a charge but no packet yet show as "not yet billed" so the money doesn't quietly leak.</p></details>
+    <details class="help"><summary>Your data &amp; backups</summary>
+      <p>Your data lives on this device only — DockClock has no account and sends nothing anywhere. To move or protect it, use <strong>Backup (JSON)</strong> in Settings and keep the file somewhere safe; <strong>Restore backup</strong> brings it back. If the browser's site data is cleared, the records go with it, so back up on any week you can't afford to lose.</p></details>
+    <p><strong>Questions?</strong> <a id="helpMail" href="mailto:whitewolfbackoffice@gmail.com?subject=DockClock%20help%20%E2%80%94%20v1.0&amp;body=Tell%20us%20what%20you%20were%20trying%20to%20do%20and%20what%20happened%3A%0A%0A">Email us for help</a> — whitewolfbackoffice@gmail.com (subject: "DockClock help — v1.0").</p>
+  </section>
+</main>
+
+<!-- ============ APPOINTMENT FORM ============ -->
+<div class="modalWrap" id="apptWrap" role="dialog" aria-modal="true" aria-labelledby="apptH">
+  <div class="modal">
+    <h2 id="apptH">Book appointment</h2>
+    <input type="hidden" id="fId">
+    <div class="grid2">
+      <div><label for="fDate">Date *</label><input type="date" id="fDate"></div>
+      <div><label for="fTime">Time *</label><input type="time" id="fTime"></div>
+      <div>
+        <label for="fCarrier">Carrier *</label>
+        <div class="fieldrow"><input type="text" id="fCarrier" placeholder="Carrier company"><button type="button" class="mic" data-mic-for="fCarrier" aria-label="Dictate carrier">🎤</button></div>
+        <div class="voiceNote" data-note-for="fCarrier">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="fDriver">Driver</label>
+        <div class="fieldrow"><input type="text" id="fDriver" placeholder="Driver name"><button type="button" class="mic" data-mic-for="fDriver" aria-label="Dictate driver">🎤</button></div>
+        <div class="voiceNote" data-note-for="fDriver">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="fPhone">Driver phone</label>
+        <div class="fieldrow"><input type="tel" id="fPhone" placeholder="Optional"><button type="button" class="mic" data-mic-for="fPhone" aria-label="Dictate phone">🎤</button></div>
+        <div class="voiceNote" data-note-for="fPhone">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div><label for="fType">Load type</label>
+        <select id="fType"><option value="Inbound">Inbound (they deliver to us)</option><option value="Outbound">Outbound (we load them)</option></select></div>
+      <div>
+        <label for="fRef">PO / reference #</label>
+        <div class="fieldrow"><input type="text" id="fRef" placeholder="Optional"><button type="button" class="mic" data-mic-for="fRef" aria-label="Dictate reference">🎤</button></div>
+        <div class="voiceNote" data-note-for="fRef">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div><label for="fDoor">Door *</label><select id="fDoor"></select></div>
+      <div>
+        <label for="fBilledTo">Detention billed to</label>
+        <div class="fieldrow"><input type="text" id="fBilledTo" placeholder="Carrier"><button type="button" class="mic" data-mic-for="fBilledTo" aria-label="Dictate billed to">🎤</button></div>
+        <div class="voiceNote" data-note-for="fBilledTo">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="fGrace">Grace override (minutes, blank = house/carrier rule)</label>
+        <div class="fieldrow"><input type="number" id="fGrace" min="0" max="10080" step="1"><button type="button" class="mic" data-mic-for="fGrace" aria-label="Dictate grace override">🎤</button></div>
+        <div class="voiceNote" data-note-for="fGrace">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div>
+        <label for="fRate">Rate override ($/hour, blank = house/carrier rule)</label>
+        <div class="fieldrow"><input type="number" id="fRate" min="0" max="100000" step="0.01"><button type="button" class="mic" data-mic-for="fRate" aria-label="Dictate rate override">🎤</button></div>
+        <div class="voiceNote" data-note-for="fRate">Voice isn't available on this device/browser — typing works as always.</div>
+      </div>
+      <div><label for="fArrived">Checked in at (optional)</label><input type="datetime-local" id="fArrived"></div>
+      <div><label for="fDoorAt">At the door at (optional)</label><input type="datetime-local" id="fDoorAt"></div>
+      <div><label for="fDeparted">Checked out at (optional)</label><input type="datetime-local" id="fDeparted"></div>
+    </div>
+    <div>
+      <label for="fNotes">Notes</label>
+      <div class="fieldrow"><textarea id="fNotes" placeholder="Anything the dock needs to know"></textarea><button type="button" class="mic" data-mic-for="fNotes" aria-label="Dictate notes">🎤</button></div>
+      <div class="voiceNote" data-note-for="fNotes">Voice isn't available on this device/browser — typing works as always.</div>
+    </div>
+    <p id="fError" style="color:var(--red);font-weight:700;display:none"></p>
+    <div class="toolbar">
+      <button type="button" class="primary big" data-act="save-appt">Save appointment</button>
+      <button type="button" data-act="cancel-appt">Cancel</button>
+      <div class="sp"></div>
+      <button type="button" class="danger" data-act="delete-appt" id="fDelete" style="display:none">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TELL ============ -->
+<div class="modalWrap" id="tellWrap" role="dialog" aria-modal="true" aria-labelledby="tellH">
+  <div class="modal">
+    <h2 id="tellH">Tell DockClock</h2>
+    <p style="margin-top:0">Say it or type it, in plain words. Examples: <em>"check in Johnson door four"</em> · <em>"start unload door two"</em> · <em>"check out Johnson"</em> · <em>"book Ozark Freight tomorrow at 8 am door two driver Sam Reed inbound"</em></p>
+    <p id="tellStatus" style="font-weight:700"></p>
+    <label for="tellInput">Your words</label>
+    <div class="fieldrow"><input type="text" id="tellInput" placeholder="Your sentence lands here"><button type="button" class="mic" data-mic-for="tellInput" aria-label="Dictate your sentence">🎤</button></div>
+    <div class="voiceNote" data-note-for="tellInput">Voice isn't available on this device/browser — typing works as always.</div>
+    <div class="toolbar">
+      <button type="button" class="blue big" data-act="tell-listen">🎙️ Listen</button>
+      <button type="button" class="primary big" data-act="tell-review">Review entry</button>
+      <button type="button" data-act="tell-close">Close</button>
+    </div>
+    <div id="tellConfirm" style="display:none;background:var(--greenbg);border-radius:10px;padding:12px">
+      <div id="tellSummary" style="font-weight:700"></div>
+      <div id="tellPickWrap" style="display:none">
+        <label for="tellPick">Which appointment?</label>
+        <select id="tellPick"></select>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="primary big" data-act="tell-save">Save it</button>
+        <button type="button" data-act="tell-discard">Discard</button>
+      </div>
+    </div>
+    <div id="tellNoteMsg" style="display:none;background:var(--amberbg);border-radius:10px;padding:12px;font-weight:700"></div>
+    <h3>Kept notes (sentences DockClock couldn't file)</h3>
+    <div id="tellNotes"><p style="color:var(--muted)">None yet.</p></div>
+  </div>
+</div>
+
+<!-- ============ CONFIRM ============ -->
+<div class="modalWrap" id="confirmWrap" role="dialog" aria-modal="true" aria-labelledby="confirmH">
+  <div class="modal">
+    <h2 id="confirmH">Are you sure?</h2>
+    <div id="confirmBody"></div>
+    <div class="toolbar">
+      <button type="button" class="primary big" data-act="confirm-yes" id="confirmYes">Yes</button>
+      <button type="button" data-act="confirm-no">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TERMS ============ -->
+<div class="modalWrap open" id="termsWrap" role="dialog" aria-modal="true" aria-labelledby="termsH">
+  <div class="modal">
+    <h2 id="termsH">Before you start</h2>
+    <div id="termsText">
+      <p><strong>DockClock</strong> — dock scheduling &amp; detention tracking for one facility. Sold and supported by <strong>White Wolf Apps</strong> (whitewolfbackoffice@gmail.com).</p>
+      <p><strong>What it does:</strong> keeps your appointment book, stamps driver check-in / at-door / check-out times, runs a detention clock using the grace period and rate <em>you</em> set, computes detention charges, and prints evidence packets you can attach to an invoice.</p>
+      <p><strong>What it does not do:</strong> DockClock is an independent tool for your own dock. It does not connect to, log into, or send anything to any retailer, carrier, or third-party system, and it is not affiliated with or endorsed by any retailer or carrier. Detention charges are calculated from the times and rules entered in the app — whether a charge is billable under a given contract is between you and that carrier or shipper; the app's packet is a record of times, not legal advice.</p>
+      <p><strong>Your data:</strong> everything you enter stays on this device in this browser. Nothing is transmitted anywhere. Backups are files you export and keep yourself.</p>
+      <p><strong>Voice entry:</strong> where your device offers speech recognition, DockClock can take dictation through your device's own speech service. Voice is optional; every field also types.</p>
+      <p>By tapping Agree you accept these terms.</p>
+    </div>
+    <label class="checkline"><input type="checkbox" id="termsCheck"> <span>I have read and agree to the terms above.</span></label>
+    <div class="toolbar"><button type="button" class="primary big" id="termsAgree" disabled>Agree &amp; start</button></div>
+  </div>
+</div>
+
+<div id="toast" role="status"><span id="toastMsg"></span><button type="button" data-act="undo-delete" id="toastUndo" style="display:none">Undo</button></div>
+<div id="printArea"></div>
+<footer>DockClock v<span id="verFoot">1.0</span> · White Wolf Apps · Works offline — your data stays on this device.</footer>
+<script>
+"use strict";
+/* ================= DockClock v1.0 — single-file offline app ================= */
+var APP_VERSION = "1.0";
+var STORE_KEY = "dockclock_v1";
+var TERMS_KEY = "dockclock_v1_terms";
+var TERMS_VERSION = "1.0";
+
+function $(id){ return document.getElementById(id); }
+function $$(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function uid(){ return "a" + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function pad2(n){ return (n<10?"0":"")+n; }
+function dateKeyOf(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function todayKey(){ return dateKeyOf(new Date()); }
+function addDaysKey(key, n){ var p=key.split("-"); var d=new Date(+p[0], +p[1]-1, +p[2]+n); return dateKeyOf(d); }
+function weekStartKey(key){ var p=key.split("-"); var d=new Date(+p[0], +p[1]-1, +p[2]); var dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return dateKeyOf(d); }
+function fmtDate(key){ if(!key) return "—"; var p=key.split("-"); var d=new Date(+p[0], +p[1]-1, +p[2]); return d.toLocaleDateString(undefined,{weekday:"short", month:"short", day:"numeric"}); }
+function fmtTimeISO(iso){ if(!iso) return "—"; var d=new Date(iso); return d.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"}); }
+function fmtDateTimeISO(iso){ if(!iso) return "—"; var d=new Date(iso); return d.toLocaleDateString(undefined,{month:"short", day:"numeric"}) + " " + fmtTimeISO(iso); }
+function fmtDur(min){ min=Math.max(0, Math.round(min)); var h=Math.floor(min/60), m=min%60; return h+"h "+pad2(m)+"m"; }
+function money(n){ n=Math.round((+n||0)*100)/100; return "$" + n.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function moneyShort(n){ n=Math.round((+n||0)*100)/100; return "$" + n.toLocaleString(undefined,{minimumFractionDigits:(n%1?2:0), maximumFractionDigits:2}); }
+function clampNum(v, lo, hi, dflt){ v=parseFloat(v); if(!isFinite(v)) return dflt; return Math.min(hi, Math.max(lo, v)); }
+function toLocalInput(iso){ if(!iso) return ""; var d=new Date(iso); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+"T"+pad2(d.getHours())+":"+pad2(d.getMinutes()); }
+function fromLocalInput(v){ if(!v) return null; var d=new Date(v); return isNaN(d.getTime())?null:d.toISOString(); }
+
+/* ================= state ================= */
+function defaultState(){
+  return {
+    settings: { facilityName:"Your Facility", doors:["Door 1","Door 2","Door 3"], graceMin:120, ratePerHour:65, billToDefault:"Carrier", carrierRules:[] },
+    appointments: [],
+    tellNotes: [],
+    trash: null,
+    demoLoaded: false
+  };
+}
+var state = defaultState();
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+function load(){
+  try{
+    var raw = localStorage.getItem(STORE_KEY);
+    if(raw){ var s = JSON.parse(raw); if(s && s.settings && Array.isArray(s.appointments)){ state = s; return; } }
+  }catch(e){}
+  state = defaultState();
+}
+var ui = { tab:"board", calDate: todayKey(), period:"week" };
+
+/* ================= records & detention math (single source of truth) ================= */
+function statusOf(a){
+  if(a.departedAt) return "departed";
+  if(a.doorAt) return "atdoor";
+  if(a.arrivedAt) return "arrived";
+  return "scheduled";
+}
+var STATUS_LABEL = { scheduled:"Booked", arrived:"In the yard", atdoor:"At the door", departed:"Gone" };
+function rulesFor(a){
+  if(a.ruleGrace!=null && a.ruleRate!=null) return { grace:+a.ruleGrace, rate:+a.ruleRate, source:"terms saved on this load" };
+  if(a.graceOverride!=null && a.graceOverride!=="") { /* single-side override handled below */ }
+  var g = state.settings.graceMin, r = state.settings.ratePerHour, src = "house rules";
+  for(var i=0;i<state.settings.carrierRules.length;i++){
+    var cr = state.settings.carrierRules[i];
+    if(cr.carrier && a.carrier && cr.carrier.toLowerCase() === a.carrier.toLowerCase()){ g=cr.graceMin; r=cr.ratePerHour; src="carrier rule for "+cr.carrier; break; }
+  }
+  if(a.graceOverride!=null && a.graceOverride!=="") g = +a.graceOverride;
+  if(a.rateOverride!=null && a.rateOverride!=="") r = +a.rateOverride;
+  if((a.graceOverride!=null && a.graceOverride!=="") || (a.rateOverride!=null && a.rateOverride!=="")) src = "this load's own terms";
+  return { grace:g, rate:r, source:src };
+}
+/* Detention: dwell = check-in -> check-out (or now, live). Past grace rounds UP to the next full hour. */
+function calcDetention(a, nowMs){
+  var out = { dwellMin:0, waitMin:null, billMin:0, billHrs:0, charge:0, rules:rulesFor(a), phase:"sched" };
+  if(!a.arrivedAt) return out;
+  var start = new Date(a.arrivedAt).getTime();
+  var end = a.departedAt ? new Date(a.departedAt).getTime() : (nowMs||Date.now());
+  out.dwellMin = Math.max(0, Math.round((end-start)/60000));
+  if(a.doorAt) out.waitMin = Math.max(0, Math.round((new Date(a.doorAt).getTime()-start)/60000));
+  else if(a.departedAt) out.waitMin = out.dwellMin;
+  out.billMin = Math.max(0, out.dwellMin - out.rules.grace);
+  out.billHrs = out.billMin>0 ? Math.ceil(out.billMin/60) : 0;
+  out.charge = Math.round(out.billHrs * out.rules.rate * 100)/100;
+  if(a.departedAt) out.phase = "done";
+  else if(out.billMin>0) out.phase = "accrue";
+  else if(out.dwellMin >= out.rules.grace - 30) out.phase = "soon";
+  else out.phase = "grace";
+  return out;
+}
+function findAppt(id){ for(var i=0;i<state.appointments.length;i++) if(state.appointments[i].id===id) return state.appointments[i]; return null; }
+function sortedAppts(list){ return list.slice().sort(function(x,y){ var k=(x.date+" "+x.time).localeCompare(y.date+" "+y.time); return k!==0?k:(x.carrier||"").localeCompare(y.carrier||""); }); }
+function apptsOn(key){ return sortedAppts(state.appointments.filter(function(a){ return a.date===key; })); }
+
+/* ================= shared card renderer ================= */
+function apptCard(a, opts){
+  opts = opts||{};
+  var st = statusOf(a), c = calcDetention(a);
+  var pillCls = st==="departed" ? "done" : st==="scheduled" ? "sched" : c.phase==="accrue" ? "accrue" : c.phase==="soon" ? "soon" : "grace";
+  var pillTxt = STATUS_LABEL[st];
+  if(st==="arrived"||st==="atdoor"){ pillTxt += c.phase==="accrue" ? " · detention running" : c.phase==="soon" ? " · grace ending" : " · in grace"; }
+  var clockHtml = "";
+  if(st==="arrived"||st==="atdoor"){
+    clockHtml = '<div class="clock">'+fmtDur(c.dwellMin)+' on site · <span class="'+(c.charge>0?"money":"")+'">'+(c.charge>0? moneyShort(c.charge)+" so far" : "no charge yet")+'</span></div>';
+  } else if(st==="departed"){
+    clockHtml = '<div>On site '+fmtDur(c.dwellMin)+' · Detention: <strong class="'+(c.charge>0?"money":"")+'">'+money(c.charge)+'</strong>'+(c.charge>0 ? (a.packetAt ? ' · <span class="pill grace">packet printed</span>' : ' · <span class="pill accrue">not yet billed</span>') : '')+'</div>';
+  }
+  var btns = "";
+  if(st==="scheduled") btns += '<button type="button" class="primary" data-act="check-in" data-id="'+a.id+'">Check in</button>';
+  if(st==="arrived") btns += '<button type="button" class="primary" data-act="at-door" data-id="'+a.id+'">At door</button>';
+  if(st==="arrived"||st==="atdoor") btns += '<button type="button" class="blue" data-act="check-out" data-id="'+a.id+'">Check out</button>';
+  if(st==="departed") btns += '<button type="button" data-act="packet" data-id="'+a.id+'">🖨 Packet</button>';
+  btns += '<button type="button" data-act="edit-appt" data-id="'+a.id+'">Edit</button>';
+  return '<div class="appt'+(st==="arrived"||st==="atdoor"?" active":"")+'" data-appt="'+a.id+'">'
+    + '<div class="who">'+esc(a.carrier||"—")+(a.driver?' · '+esc(a.driver):"")+' <span class="pill '+pillCls+'">'+pillTxt+'</span></div>'
+    + '<div class="meta">'+(opts.showDate? fmtDate(a.date)+" · ":"")+esc(a.time||"")+' · '+esc(a.type||"")+' · '+esc(a.door||"")
+    + (a.ref?' · PO/Ref '+esc(a.ref):"")+(a.phone?' · '+esc(a.phone):"")+'</div>'
+    + '<div class="meta">In: '+fmtTimeISO(a.arrivedAt)+' · At door: '+fmtTimeISO(a.doorAt)+' · Out: '+fmtTimeISO(a.departedAt)+'</div>'
+    + clockHtml
+    + (a.notes? '<div class="meta">📝 '+esc(a.notes)+'</div>' : "")
+    + '<div class="row">'+btns+'</div></div>';
+}
+
+/* ================= renders ================= */
+function renderHeader(){
+  $("facName").textContent = state.settings.facilityName || "Your Facility";
+  var d = new Date();
+  $("nowClock").textContent = d.toLocaleDateString(undefined,{weekday:"short", month:"short", day:"numeric"}) + " · " + d.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"});
+}
+function renderBoard(){
+  var tk = todayKey(), now = Date.now();
+  var todays = apptsOn(tk);
+  var onSite = todays.filter(function(a){ var s=statusOf(a); return s==="arrived"||s==="atdoor"; });
+  var accruing = 0;
+  onSite.forEach(function(a){ accruing += calcDetention(a, now).charge; });
+  var finished = todays.filter(function(a){ return statusOf(a)==="departed"; });
+  var finDollars = finished.reduce(function(sum,a){ return sum + calcDetention(a).charge; }, 0);
+  $("boardCards").innerHTML =
+    statCard("Trucks on site now", String(onSite.length), "checked in and not yet out")
+    + statCard("Accruing right now", moneyShort(accruing), "detention building on live clocks")
+    + statCard("Detention today (finished)", moneyShort(finDollars), finished.length + " load(s) checked out")
+    + statCard("Appointments today", String(todays.length), todays.filter(function(a){return statusOf(a)==="scheduled";}).length + " still to arrive");
+  var doors = state.settings.doors.slice();
+  todays.forEach(function(a){ if(a.door && doors.indexOf(a.door)<0) doors.push(a.door); });
+  if(!todays.length){
+    $("boardDoors").innerHTML = '<div class="empty">No appointments today yet.<br><br><button type="button" class="primary big" data-act="add-appt">+ Book appointment</button> <button type="button" class="big" data-act="load-demo">Load a sample day</button></div>';
+    return;
+  }
+  $("boardDoors").innerHTML = '<div class="doors">' + doors.map(function(door){
+    var list = todays.filter(function(a){ return a.door===door; });
+    var body = list.length ? list.map(function(a){ return apptCard(a); }).join("") : '<p style="color:var(--muted)">Nothing booked at this door today.</p>';
+    return '<div class="door"><h3>'+esc(door)+'</h3>'+body+'</div>';
+  }).join("") + '</div>';
+}
+function statCard(k, v, s){ return '<div class="stat"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div><div class="s">'+esc(s)+'</div></div>'; }
+
+function renderCalendar(){
+  $("calDate").value = ui.calDate;
+  var ws = weekStartKey(ui.calDate), html = "";
+  for(var i=0;i<7;i++){
+    var k = addDaysKey(ws, i);
+    html += '<button type="button" data-act="cal-day" data-date="'+k+'" class="'+(k===ui.calDate?"active":"")+'">'+fmtDate(k)+'<br>'+apptsOn(k).length+' appt(s)</button>';
+  }
+  $("weekStrip").innerHTML = html;
+  var list = apptsOn(ui.calDate);
+  if(!list.length){ $("calendarList").innerHTML = '<div class="empty">No appointments on '+fmtDate(ui.calDate)+'.</div>'; return; }
+  var doors = state.settings.doors.slice();
+  list.forEach(function(a){ if(a.door && doors.indexOf(a.door)<0) doors.push(a.door); });
+  var others = list.filter(function(a){ return doors.indexOf(a.door)<0; });
+  $("calendarList").innerHTML = doors.map(function(door){
+    var dl = list.filter(function(a){ return a.door===door; });
+    if(!dl.length) return "";
+    return '<h3>'+esc(door)+'</h3>' + dl.map(function(a){ return apptCard(a); }).join("");
+  }).join("") + (others.length ? '<h3>Other</h3>' + others.map(function(a){ return apptCard(a); }).join("") : "");
+}
+
+function renderLog(){
+  var q = ($("logSearch").value||"").toLowerCase(), stf = $("logStatus").value;
+  var carriers = {};
+  state.appointments.forEach(function(a){ if(a.carrier) carriers[a.carrier]=1; });
+  var cur = $("packetCarrier").value;
+  $("packetCarrier").innerHTML = Object.keys(carriers).sort().map(function(c){ return '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }).join("");
+  if(cur && carriers[cur]) $("packetCarrier").value = cur;
+  if(!$("packetWeek").value) $("packetWeek").value = todayKey();
+  var list = sortedAppts(state.appointments).filter(function(a){
+    if(stf && statusOf(a)!==stf) return false;
+    if(q){ var hay = ((a.carrier||"")+" "+(a.driver||"")+" "+(a.ref||"")).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    return true;
+  }).reverse();
+  $("logList").innerHTML = list.length ? list.map(function(a){ return apptCard(a, {showDate:true}); }).join("") : '<div class="empty">No appointments match.</div>';
+}
+
+function periodKeys(){
+  if(ui.period==="today") return [todayKey()];
+  var ws = weekStartKey(todayKey()), out = [];
+  for(var i=0;i<7;i++) out.push(addDaysKey(ws, i));
+  return out;
+}
+function renderAnalytics(){
+  $("perTodayBtn").className = ui.period==="today" ? "blue" : "";
+  $("perWeekBtn").className = ui.period==="week" ? "blue" : "";
+  var keys = periodKeys();
+  var done = state.appointments.filter(function(a){ return a.departedAt && keys.indexOf(a.date)>=0; });
+  var loads = done.length;
+  var waitSum=0, turnSum=0, captured=0, unbilled=0, total=0;
+  done.forEach(function(a){
+    var c = calcDetention(a);
+    if(c.waitMin!=null) waitSum += c.waitMin;
+    turnSum += c.dwellMin; total += c.charge;
+    if(c.charge>0){ if(a.packetAt) captured += c.charge; else unbilled += c.charge; }
+  });
+  $("analyticsCards").innerHTML =
+    statCard("Loads finished", String(loads), ui.period==="today" ? "today" : "this week (Mon–Sun)")
+    + statCard("Average wait to door", loads? fmtDur(waitSum/loads) : "—", "check-in to at-door")
+    + statCard("Average turn time", loads? fmtDur(turnSum/loads) : "—", "check-in to check-out")
+    + statCard("Detention billed (packet printed)", moneyShort(captured), "money with proof in hand")
+    + statCard("Detention not yet billed", moneyShort(unbilled), "finished loads with a charge but no packet yet")
+    + statCard("Detention total", moneyShort(total), "all finished loads in the period");
+  var byCarrier = {};
+  done.forEach(function(a){
+    var k = a.carrier||"(no carrier)"; byCarrier[k] = byCarrier[k]||{loads:0, dwell:0, charge:0};
+    byCarrier[k].loads++; byCarrier[k].dwell += calcDetention(a).dwellMin; byCarrier[k].charge += calcDetention(a).charge;
+  });
+  var cRows = Object.keys(byCarrier).map(function(k){ return {name:k, v:byCarrier[k]}; }).sort(function(x,y){ return (y.v.dwell/y.v.loads)-(x.v.dwell/x.v.loads); });
+  $("carrierStats").innerHTML = cRows.length ? '<table><tr><th>Carrier</th><th>Loads</th><th>Avg time on site</th><th>Detention</th></tr>' + cRows.map(function(r){ return '<tr><td>'+esc(r.name)+'</td><td>'+r.v.loads+'</td><td>'+fmtDur(r.v.dwell/r.v.loads)+'</td><td>'+money(r.v.charge)+'</td></tr>'; }).join("") + '</table>' : '<div class="empty">No finished loads in this period yet.</div>';
+  var byDoor = {};
+  done.forEach(function(a){
+    var k = a.door||"(no door)"; byDoor[k] = byDoor[k]||{loads:0, turn:0};
+    byDoor[k].loads++; byDoor[k].turn += calcDetention(a).dwellMin;
+  });
+  var dRows = Object.keys(byDoor).map(function(k){ return {name:k, v:byDoor[k]}; }).sort(function(x,y){ return (y.v.turn/y.v.loads)-(x.v.turn/x.v.loads); });
+  $("doorStats").innerHTML = dRows.length ? '<table><tr><th>Door</th><th>Loads</th><th>Avg turn time</th></tr>' + dRows.map(function(r){ return '<tr><td>'+esc(r.name)+'</td><td>'+r.v.loads+'</td><td>'+fmtDur(r.v.turn/r.v.loads)+'</td></tr>'; }).join("") + '</table>' : '<div class="empty">No finished loads in this period yet.</div>';
+  var ws = weekStartKey(todayKey());
+  function weekTotal(startKey){
+    var ks = []; for(var i=0;i<7;i++) ks.push(addDaysKey(startKey, i));
+    return state.appointments.filter(function(a){ return a.departedAt && ks.indexOf(a.date)>=0; })
+      .reduce(function(sum,a){ return sum + calcDetention(a).charge; }, 0);
+  }
+  var thisW = weekTotal(ws), lastW = weekTotal(addDaysKey(ws, -7));
+  $("weekCompare").innerHTML = '<div class="cards">' + statCard("This week", moneyShort(thisW), "detention on finished loads") + statCard("Last week", moneyShort(lastW), "detention on finished loads") + statCard("Change", moneyShort(thisW-lastW), thisW>=lastW ? "up from last week" : "down from last week") + '</div>';
+}
+
+function renderSettings(){
+  $("setFacility").value = state.settings.facilityName || "";
+  $("setGrace").value = state.settings.graceMin;
+  $("setRate").value = state.settings.ratePerHour;
+  $("setBillTo").value = state.settings.billToDefault || "";
+  $("doorList").innerHTML = state.settings.doors.map(function(d, i){
+    return '<div class="fieldrow" style="margin:6px 0"><input type="text" class="door-name" data-idx="'+i+'" value="'+esc(d)+'" aria-label="Door name '+(i+1)+'"><button type="button" class="mic" data-mic-for-class="door-name" data-idx="'+i+'" aria-label="Dictate door name">🎤</button><button type="button" class="danger" data-act="remove-door" data-idx="'+i+'">Remove</button></div>'
+      + '<div class="voiceNote" data-note-class="door-name" data-idx="'+i+'">Voice isn\'t available on this device/browser — typing works as always.</div>';
+  }).join("");
+  $("ruleList").innerHTML = state.settings.carrierRules.length ? state.settings.carrierRules.map(function(r, i){
+    return '<div class="appt"><div class="who">'+esc(r.carrier)+'</div><div class="meta">Grace '+r.graceMin+' min · '+money(r.ratePerHour)+'/hour</div><div class="row"><button type="button" class="danger" data-act="remove-rule" data-idx="'+i+'">Remove rule</button></div></div>';
+  }).join("") : '<p style="color:var(--muted)">No carrier overrides yet — every load uses the house rules.</p>';
+}
+function renderAll(){
+  renderHeader(); renderBoard(); renderCalendar(); renderLog(); renderAnalytics(); renderSettings(); renderTellNotes();
+}
+function switchTab(tab){
+  ui.tab = tab;
+  $$("#tabbar button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
+  $$(".view").forEach(function(v){ v.classList.toggle("active", v.id==="view-"+tab); });
+  if(tab==="board") renderBoard();
+  if(tab==="calendar") renderCalendar();
+  if(tab==="log") renderLog();
+  if(tab==="analytics") renderAnalytics();
+  if(tab==="settings") renderSettings();
+}
+
+/* ================= toast ================= */
+var toastTimer = null;
+function toast(msg, withUndo){
+  $("toastMsg").textContent = msg;
+  $("toastUndo").style.display = withUndo ? "" : "none";
+  $("toast").classList.add("show");
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ $("toast").classList.remove("show"); }, withUndo?9000:4000);
+}
+</script>
+<script>
+/* ================= confirm modal ================= */
+var confirmFn = null;
+function askConfirm(title, bodyHTML, yesLabel, fn){
+  $("confirmH").textContent = title;
+  $("confirmBody").innerHTML = bodyHTML;
+  $("confirmYes").textContent = yesLabel || "Yes";
+  confirmFn = fn;
+  $("confirmWrap").classList.add("open");
+}
+function closeConfirm(){ $("confirmWrap").classList.remove("open"); confirmFn = null; }
+
+/* ================= settings actions ================= */
+function collectSettings(){
+  var doorInputs = $$(".door-name");
+  if(doorInputs.length){
+    var doors = doorInputs.map(function(inp){ return inp.value.trim(); }).filter(function(v){ return v; });
+    var seen = {}, uniq = [];
+    doors.forEach(function(d){ var k=d.toLowerCase(); if(!seen[k]){ seen[k]=1; uniq.push(d); } });
+    if(uniq.length) state.settings.doors = uniq;
+  }
+  state.settings.facilityName = $("setFacility").value.trim() || "Your Facility";
+  state.settings.graceMin = Math.round(clampNum($("setGrace").value, 0, 10080, 120));
+  state.settings.ratePerHour = clampNum($("setRate").value, 0, 100000, 65);
+  state.settings.billToDefault = $("setBillTo").value.trim() || "Carrier";
+}
+function doSaveSettings(){ collectSettings(); save(); renderAll(); toast("Settings saved."); }
+
+/* ================= appointment form ================= */
+function fillDoorSelect(sel, current){
+  var doors = state.settings.doors.slice();
+  if(current && doors.indexOf(current)<0) doors.push(current);
+  sel.innerHTML = doors.map(function(d){ return '<option value="'+esc(d)+'">'+esc(d)+'</option>'; }).join("");
+  if(current) sel.value = current;
+}
+function openAppt(id, presetDate){
+  var a = id ? findAppt(id) : null;
+  $("apptH").textContent = a ? "Edit appointment" : "Book appointment";
+  $("fId").value = a ? a.id : "";
+  $("fDate").value = a ? a.date : (presetDate || todayKey());
+  $("fTime").value = a ? (a.time || "08:00") : "08:00";
+  $("fCarrier").value = a ? (a.carrier||"") : "";
+  $("fDriver").value = a ? (a.driver||"") : "";
+  $("fPhone").value = a ? (a.phone||"") : "";
+  $("fType").value = a ? (a.type||"Inbound") : "Inbound";
+  $("fRef").value = a ? (a.ref||"") : "";
+  fillDoorSelect($("fDoor"), a ? a.door : state.settings.doors[0]);
+  $("fBilledTo").value = a ? (a.billedTo||"") : (state.settings.billToDefault||"Carrier");
+  $("fGrace").value = a && a.graceOverride!=null ? a.graceOverride : "";
+  $("fRate").value = a && a.rateOverride!=null ? a.rateOverride : "";
+  $("fArrived").value = a ? toLocalInput(a.arrivedAt) : "";
+  $("fDoorAt").value = a ? toLocalInput(a.doorAt) : "";
+  $("fDeparted").value = a ? toLocalInput(a.departedAt) : "";
+  $("fNotes").value = a ? (a.notes||"") : "";
+  $("fError").style.display = "none";
+  $("fDelete").style.display = a ? "" : "none";
+  $("apptWrap").classList.add("open");
+}
+function formError(msg){ var e=$("fError"); e.textContent = msg; e.style.display="block"; }
+function saveAppt(){
+  var id = $("fId").value || null;
+  var old = id ? findAppt(id) : null;
+  var date = $("fDate").value, time = $("fTime").value, carrier = $("fCarrier").value.trim(), door = $("fDoor").value;
+  if(!date || !time) return formError("Date and time are required.");
+  if(!carrier) return formError("Carrier is required.");
+  if(!door) return formError("Pick a door.");
+  var arrived = fromLocalInput($("fArrived").value), doorAt = fromLocalInput($("fDoorAt").value), departed = fromLocalInput($("fDeparted").value);
+  if(doorAt && !arrived) return formError("An at-door time needs a check-in time first.");
+  if(departed && !arrived) return formError("A check-out time needs a check-in time first.");
+  if(arrived && doorAt && new Date(doorAt) < new Date(arrived)) return formError("At-door time is before the check-in time — fix the times.");
+  if(doorAt && departed && new Date(departed) < new Date(doorAt)) return formError("Check-out time is before the at-door time — fix the times.");
+  if(arrived && departed && new Date(departed) < new Date(arrived)) return formError("Check-out time is before the check-in time — fix the times.");
+  var rec = {
+    id: old ? old.id : uid(),
+    date: date, time: time, carrier: carrier,
+    driver: $("fDriver").value.trim(), phone: $("fPhone").value.trim(),
+    type: $("fType").value, ref: $("fRef").value.trim(), door: door,
+    billedTo: $("fBilledTo").value.trim(),
+    graceOverride: $("fGrace").value==="" ? null : clampNum($("fGrace").value, 0, 10080, 0),
+    rateOverride: $("fRate").value==="" ? null : clampNum($("fRate").value, 0, 100000, 0),
+    arrivedAt: arrived, doorAt: doorAt, departedAt: departed,
+    notes: $("fNotes").value.trim(),
+    packetAt: old ? old.packetAt : null,
+    ruleGrace: null, ruleRate: null,
+    demo: old ? !!old.demo : false
+  };
+  if(old && (old.arrivedAt!==rec.arrivedAt || old.doorAt!==rec.doorAt || old.departedAt!==rec.departedAt)) rec.packetAt = null;
+  if(rec.departedAt){ var r = rulesFor(rec); rec.ruleGrace = r.grace; rec.ruleRate = r.rate; }
+  if(old){ var idx = state.appointments.indexOf(old); state.appointments[idx] = rec; }
+  else state.appointments.push(rec);
+  save(); $("apptWrap").classList.remove("open"); renderAll();
+  toast(old ? "Appointment updated." : "Appointment booked.");
+}
+function doDelete(id){
+  var a = findAppt(id); if(!a) return;
+  state.trash = a;
+  state.appointments = state.appointments.filter(function(x){ return x.id!==id; });
+  save(); $("apptWrap").classList.remove("open"); renderAll();
+  toast("Appointment deleted.", true);
+}
+
+/* ================= dock actions ================= */
+function doCheckIn(id){ var a=findAppt(id); if(!a) return; a.arrivedAt = new Date().toISOString(); save(); renderAll(); toast("Checked in " + (a.driver||a.carrier) + " — clock running."); }
+function doAtDoor(id){ var a=findAppt(id); if(!a) return; if(!a.arrivedAt) a.arrivedAt = new Date().toISOString(); a.doorAt = new Date().toISOString(); save(); renderAll(); toast((a.driver||a.carrier) + " is at the door."); }
+function askCheckOut(id){
+  var a = findAppt(id); if(!a) return;
+  var nowISO = new Date().toISOString();
+  var probe = {}; for(var k in a) probe[k]=a[k]; probe.departedAt = nowISO;
+  var c = calcDetention(probe);
+  var body = '<p><strong>'+esc(a.carrier||"")+(a.driver?' · '+esc(a.driver):"")+'</strong> — '+esc(a.door||"")+'</p>'
+    + '<p>Checked in: '+fmtDateTimeISO(a.arrivedAt)+'<br>Check out: '+fmtDateTimeISO(nowISO)+'<br>Time on site: '+fmtDur(c.dwellMin)+'</p>'
+    + '<p>Grace: '+c.rules.grace+' min ('+esc(c.rules.source)+')<br>Billable: '+fmtDur(c.billMin)+' → '+c.billHrs+' hour(s) × '+money(c.rules.rate)+'</p>'
+    + '<p style="font-size:19px">Detention charge: <strong class="money">'+money(c.charge)+'</strong></p>'
+    + '<p>Billed to: '+esc(a.billedTo || state.settings.billToDefault || "Carrier")+'</p>';
+  askConfirm("Check out this load?", body, "Check out & save", function(){
+    a.departedAt = nowISO;
+    var r = rulesFor(a); a.ruleGrace = r.grace; a.ruleRate = r.rate;
+    save(); renderAll();
+    toast("Checked out. Detention: " + money(c.charge) + (c.charge>0 ? " — print the packet to bill it." : ""));
+  });
+}
+
+/* ================= packets & exports ================= */
+function packetHTML(a){
+  var c = calcDetention(a);
+  return '<h1>Detention evidence packet</h1>'
+    + '<p><strong>'+esc(state.settings.facilityName)+'</strong> · Generated '+fmtDateTimeISO(new Date().toISOString())+' by DockClock</p>'
+    + '<table><tr><th style="width:34%">Field</th><th>Detail</th></tr>'
+    + '<tr><td>Carrier</td><td>'+esc(a.carrier||"")+'</td></tr>'
+    + '<tr><td>Driver</td><td>'+esc(a.driver||"")+(a.phone?' · '+esc(a.phone):"")+'</td></tr>'
+    + '<tr><td>Appointment</td><td>'+fmtDate(a.date)+' at '+esc(a.time||"")+' · '+esc(a.type||"")+' · '+esc(a.door||"")+'</td></tr>'
+    + (a.ref? '<tr><td>PO / reference</td><td>'+esc(a.ref)+'</td></tr>' : "")
+    + '<tr><td>Checked in (arrival)</td><td>'+fmtDateTimeISO(a.arrivedAt)+'</td></tr>'
+    + '<tr><td>At the door</td><td>'+fmtDateTimeISO(a.doorAt)+'</td></tr>'
+    + '<tr><td>Checked out (departure)</td><td>'+fmtDateTimeISO(a.departedAt)+'</td></tr>'
+    + '<tr><td>Time on site</td><td>'+fmtDur(c.dwellMin)+'</td></tr>'
+    + '<tr><td>Rules applied</td><td>Grace '+c.rules.grace+' minutes, then '+money(c.rules.rate)+' per hour or part-hour ('+esc(c.rules.source)+')</td></tr>'
+    + '<tr><td>Detention math</td><td>'+fmtDur(c.dwellMin)+' on site − '+c.rules.grace+' min grace = '+fmtDur(c.billMin)+' billable, rounded up to '+c.billHrs+' hour(s) × '+money(c.rules.rate)+'</td></tr>'
+    + '<tr><td><strong>Detention charge</strong></td><td><strong>'+money(c.charge)+'</strong></td></tr>'
+    + '<tr><td>Billed to</td><td>'+esc(a.billedTo || state.settings.billToDefault || "Carrier")+'</td></tr>'
+    + (a.notes? '<tr><td>Notes</td><td>'+esc(a.notes)+'</td></tr>' : "")
+    + '</table><p style="font-size:12px">Times are as stamped in DockClock at the dock. This packet is a record of times and the facility\'s own detention rules — attach it to the invoice for this load.</p>';
+}
+function doPacket(id){
+  var a = findAppt(id); if(!a || !a.departedAt) return;
+  a.packetAt = new Date().toISOString();
+  save(); renderAll();
+  $("printArea").innerHTML = packetHTML(a);
+  window.print();
+  toast("Packet ready — detention marked as billed (packet printed).");
+}
+function doCarrierPacket(){
+  var carrier = $("packetCarrier").value;
+  var wk = $("packetWeek").value || todayKey();
+  if(!carrier){ toast("No carriers yet — nothing to pack."); return; }
+  var ws = weekStartKey(wk), keys = [];
+  for(var i=0;i<7;i++) keys.push(addDaysKey(ws, i));
+  var loads = sortedAppts(state.appointments.filter(function(a){ return a.carrier===carrier && a.departedAt && keys.indexOf(a.date)>=0; }));
+  if(!loads.length){ toast("No finished loads for " + carrier + " in that week."); return; }
+  var total = 0, nowISO = new Date().toISOString();
+  var parts = loads.map(function(a){ if(!a.packetAt) a.packetAt = nowISO; total += calcDetention(a).charge; return packetHTML(a); });
+  save(); renderAll();
+  $("printArea").innerHTML = '<h1>'+esc(carrier)+' — week of '+fmtDate(ws)+'</h1><p>'+loads.length+' finished load(s) · Total detention: <strong>'+money(total)+'</strong> · '+esc(state.settings.facilityName)+'</p>' + parts.join('<hr>');
+  window.print();
+  toast("Carrier week packet ready: " + money(total) + " across " + loads.length + " load(s).");
+}
+function download(filename, text, type){
+  var blob = new Blob([text], { type: type || "text/plain" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 400);
+}
+function csvCell(v){ v = String(v==null?"":v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+function doCSV(){
+  var head = ["Date","Time","Carrier","Driver","Phone","Type","Ref","Door","BilledTo","Status","CheckedIn","AtDoor","CheckedOut","GraceMin","RatePerHour","DetentionMinutes","DetentionHours","DetentionCharge","PacketPrinted","Notes"];
+  var lines = [head.join(",")];
+  sortedAppts(state.appointments).forEach(function(a){
+    var c = calcDetention(a);
+    lines.push([a.date, a.time, a.carrier, a.driver, a.phone, a.type, a.ref, a.door, a.billedTo||state.settings.billToDefault, STATUS_LABEL[statusOf(a)],
+      a.arrivedAt||"", a.doorAt||"", a.departedAt||"", c.rules.grace, c.rules.rate, c.billMin, c.billHrs, c.charge.toFixed(2), a.packetAt?"yes":"no", a.notes||""].map(csvCell).join(","));
+  });
+  download("dockclock-log-" + todayKey() + ".csv", lines.join("\n"), "text/csv");
+  toast("CSV exported — " + state.appointments.length + " appointment(s).");
+}
+function doBackup(){ download("dockclock-backup-" + todayKey() + ".json", JSON.stringify(state, null, 2), "application/json"); toast("Backup downloaded."); }
+function doImportFile(file){
+  var reader = new FileReader();
+  reader.onload = function(){
+    try{
+      var s = JSON.parse(reader.result);
+      if(!s || !s.settings || !Array.isArray(s.appointments)) throw new Error("shape");
+      var d = defaultState();
+      state = { settings: Object.assign(d.settings, s.settings), appointments: s.appointments, tellNotes: s.tellNotes||[], trash: null, demoLoaded: !!s.demoLoaded };
+      save(); renderAll(); toast("Backup restored.");
+    }catch(e){ toast("That file couldn't be read as a DockClock backup — nothing was changed."); }
+  };
+  reader.readAsText(file);
+}
+
+/* ================= demo data (generic, fictional) ================= */
+function hmOf(iso){ var d=new Date(iso); return pad2(d.getHours())+":"+pad2(d.getMinutes()); }
+function minsAgoISO(m){ return new Date(Date.now()-m*60000).toISOString(); }
+function dayAtISO(key, h, mi){ var p=key.split("-"); return new Date(+p[0], +p[1]-1, +p[2], h, mi).toISOString(); }
+function loadDemo(){
+  if(state.demoLoaded){ toast("Sample day is already loaded."); return; }
+  if(state.settings.facilityName==="Your Facility") state.settings.facilityName = "Prairie Gate Distribution Center";
+  ["Door 1","Door 2","Door 3","Door 4"].forEach(function(d){ if(state.settings.doors.indexOf(d)<0) state.settings.doors.push(d); });
+  var tk = todayKey(), yk = addDaysKey(tk, -1), mk = addDaysKey(tk, 1);
+  function rec(o){ o.id = uid(); o.demo = true; o.packetAt = o.packetAt||null; o.ruleGrace = o.departedAt? state.settings.graceMin : null; o.ruleRate = o.departedAt? state.settings.ratePerHour : null; o.graceOverride=null; o.rateOverride=null; return o; }
+  var a1 = rec({ date:tk, carrier:"Ozark Freight Lines", driver:"Dale Johnson", phone:"555-0142", type:"Inbound", ref:"PO-1042", door:"Door 1", billedTo:"Carrier", arrivedAt:minsAgoISO(235), doorAt:minsAgoISO(205), departedAt:minsAgoISO(25), notes:"Sample load — finished earlier today." });
+  a1.time = hmOf(a1.arrivedAt);
+  var a2 = rec({ date:tk, carrier:"Grand Lake Transport", driver:"Maria Lopez", phone:"555-0117", type:"Inbound", ref:"PO-1043", door:"Door 2", billedTo:"Carrier", arrivedAt:minsAgoISO(185), doorAt:minsAgoISO(170), departedAt:null, notes:"Sample load — at the door now, clock running." });
+  a2.time = hmOf(a2.arrivedAt);
+  var a3 = rec({ date:tk, carrier:"Prairie Haul Co", driver:"Sam Reed", phone:"555-0129", type:"Outbound", ref:"PO-1044", door:"Door 1", billedTo:"Carrier", arrivedAt:minsAgoISO(40), doorAt:null, departedAt:null, notes:"Sample load — in the yard, still in grace." });
+  a3.time = hmOf(a3.arrivedAt);
+  var later = new Date(Date.now()+120*60000);
+  var a4 = rec({ date:tk, time:pad2(later.getHours())+":"+pad2(later.getMinutes()), carrier:"Three Rivers Logistics", driver:"Pat Nguyen", phone:"555-0133", type:"Inbound", ref:"PO-1045", door:"Door 3", billedTo:"Carrier", arrivedAt:null, doorAt:null, departedAt:null, notes:"Sample load — booked for later today." });
+  var a5 = rec({ date:yk, time:"09:00", carrier:"Ozark Freight Lines", driver:"Chris Doyle", phone:"555-0151", type:"Inbound", ref:"PO-1039", door:"Door 2", billedTo:"Carrier", arrivedAt:dayAtISO(yk,9,0), doorAt:dayAtISO(yk,9,20), departedAt:dayAtISO(yk,11,35), packetAt:dayAtISO(yk,11,40), notes:"Sample load — yesterday, packet already printed." });
+  var a6 = rec({ date:mk, time:"08:00", carrier:"Grand Lake Transport", driver:"Alex Kim", phone:"555-0164", type:"Outbound", ref:"PO-1051", door:"Door 2", billedTo:"Carrier", arrivedAt:null, doorAt:null, departedAt:null, notes:"Sample load — booked for tomorrow." });
+  state.appointments = state.appointments.concat([a1,a2,a3,a4,a5,a6]);
+  state.demoLoaded = true;
+  save(); renderAll();
+  toast("Sample day loaded — fictional carriers and drivers, real math.");
+}
+function clearDemo(){
+  askConfirm("Clear sample data?", "<p>Removes the fictional sample appointments. Anything you booked yourself stays.</p>", "Clear sample data", function(){
+    var before = state.appointments.length;
+    state.appointments = state.appointments.filter(function(a){ return !a.demo; });
+    state.demoLoaded = false;
+    save(); renderAll();
+    toast("Cleared " + (before - state.appointments.length) + " sample appointment(s).");
+  });
+}
+function resetAll(){
+  askConfirm("Erase everything?", "<p>This removes <strong>all</strong> appointments, settings, carrier rules, and kept notes from this device. There is no undo. Back up first if you might want any of it back.</p>", "Erase everything", function(){
+    state = defaultState();
+    save(); renderAll();
+    toast("Everything erased. Fresh start.");
+  });
+}
+</script>
+<script>
+/* ================= voice dictation (§9a — one press) ================= */
+var activeRec = null;
+function micBtnFor(input){
+  if(input.id){ var b = document.querySelector('[data-mic-for="'+input.id+'"]'); if(b) return b; }
+  if(input.classList.contains("door-name")) return document.querySelector('[data-mic-for-class="door-name"][data-idx="'+input.getAttribute("data-idx")+'"]');
+  return null;
+}
+function showVoiceNote(input){
+  var note = null;
+  if(input.id) note = document.querySelector('[data-note-for="'+input.id+'"]');
+  if(!note && input.classList.contains("door-name")) note = document.querySelector('[data-note-class="door-name"][data-idx="'+input.getAttribute("data-idx")+'"]');
+  if(note) note.classList.add("show");
+}
+function dictate(input, after){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showVoiceNote(input); toast("Voice isn't available on this device/browser — typing works as always."); return false; }
+  if(activeRec){ try{ activeRec.abort(); }catch(e){} activeRec = null; }
+  var rec = new SR(); rec.lang = "en-US"; rec.interimResults = false; rec.maxAlternatives = 1;
+  activeRec = rec;
+  var btn = micBtnFor(input); if(btn) btn.classList.add("listening");
+  if(input.id === "tellInput") $("tellStatus").textContent = "Listening… speak now.";
+  rec.onresult = function(ev){
+    var t = "";
+    for(var i=ev.resultIndex;i<ev.results.length;i++){ if(ev.results[i].isFinal) t += ev.results[i][0].transcript; }
+    if(!t && ev.results[0]) t = ev.results[0][0].transcript;
+    input.value = t;
+    input.dispatchEvent(new Event("input", { bubbles:true }));
+    if(after) after(t);
+  };
+  rec.onerror = function(){ toast("Didn't catch that — try again or type it."); };
+  rec.onend = function(){ if(btn) btn.classList.remove("listening"); if(input.id === "tellInput") $("tellStatus").textContent = ""; if(activeRec === rec) activeRec = null; };
+  try{ rec.start(); }catch(e){ toast("Voice didn't start — typing works as always."); return false; }
+  return true;
+}
+
+/* ================= Tell DockClock (§9b) ================= */
+var pendingTell = null;
+var NUMW = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, eleven:11, twelve:12 };
+function numWord(tok){ if(tok==null) return null; if(/^\d+$/.test(tok)) return parseInt(tok,10); return NUMW[tok] || null; }
+function titleCase(s){ return String(s||"").replace(/\b[a-z]/g, function(ch){ return ch.toUpperCase(); }).trim(); }
+function doorFromText(s){
+  var m = s.match(/door\s+([a-z0-9]+)/);
+  if(!m) return null;
+  var n = numWord(m[1]);
+  if(n != null){
+    for(var i=0;i<state.settings.doors.length;i++){ var dm = state.settings.doors[i].match(/(\d+)\s*$/); if(dm && +dm[1]===n) return state.settings.doors[i]; }
+    return "Door " + n;
+  }
+  for(var j=0;j<state.settings.doors.length;j++){ if(state.settings.doors[j].toLowerCase().indexOf(m[1]) >= 0) return state.settings.doors[j]; }
+  return null;
+}
+function nameMatches(a, name){
+  if(!name) return false;
+  var drv = (a.driver||"").toLowerCase(); if(!drv) return false;
+  if(drv.indexOf(name) >= 0) return true;
+  var words = name.split(/\s+/).filter(function(w){ return w.length > 1; });
+  var dwords = drv.split(/\s+/);
+  return words.some(function(w){ return dwords.indexOf(w) >= 0; });
+}
+function tellCandidates(statuses, name, door){
+  return apptsOn(todayKey()).filter(function(a){
+    if(statuses.indexOf(statusOf(a)) < 0) return false;
+    if(name && !nameMatches(a, name)) return false;
+    if(door && a.door !== door) return false;
+    return true;
+  });
+}
+function apptLabel(a){ return (a.driver || a.carrier || "Load") + " — " + (a.carrier||"") + ", " + (a.door||"") + ", booked " + (a.time||""); }
+function actionSummary(kind, cands){
+  var verb = kind === "checkin" ? "Check in" : kind === "atdoor" ? "Mark at the door" : "Check out";
+  if(cands.length === 1) return verb + ": " + apptLabel(cands[0]) + ". Stamps the time as right now.";
+  return verb + ": found " + cands.length + " appointments that match — pick the right one below, then tap Save it.";
+}
+function parseTell(raw){
+  var c = raw.toLowerCase().replace(/[.,;]/g, " ").replace(/\s+/g, " ").trim(); /* keep ':' — spoken times like "2:30 pm" need it */
+  if(!c) return { error: "Say or type a sentence first." };
+  if(c.indexOf("book ") === 0){
+    var door = doorFromText(c);
+    var date = c.indexOf(" tomorrow") >= 0 ? addDaysKey(todayKey(), 1) : todayKey();
+    var tm = c.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+    var time = "08:00";
+    if(tm){ var h = numWord(tm[1]); var min = tm[2] ? +tm[2] : 0; if(tm[3] === "pm" && h < 12) h += 12; if(tm[3] === "am" && h === 12) h = 0; time = pad2(h) + ":" + pad2(min); }
+    var dm = c.match(/\bdriver\s+([a-z' -]+?)(?=\s+(inbound|outbound|door|at|po|ref)\b|$)/);
+    var driver = dm ? titleCase(dm[1]) : "";
+    var type = c.indexOf(" outbound") >= 0 ? "Outbound" : "Inbound";
+    var rm = c.match(/\b(?:po|ref)\s*#?\s*([a-z0-9-]+)/);
+    var ref = rm ? rm[1].toUpperCase() : "";
+    var rest = c.slice(5), cut = rest.length;
+    [" tomorrow", " today", " at ", " door ", " driver ", " inbound", " outbound", " po ", " ref "].forEach(function(mk){ var i = rest.indexOf(mk); if(i >= 0 && i < cut) cut = i; });
+    var carrier = titleCase(rest.slice(0, cut));
+    if(!carrier) return { error: "I need the carrier name to book that — try \"book Ozark Freight tomorrow at 8 am door two\"." };
+    var appt = { id: uid(), date: date, time: time, carrier: carrier, driver: driver, phone: "", type: type, ref: ref,
+      door: door || state.settings.doors[0], billedTo: state.settings.billToDefault || "Carrier",
+      graceOverride: null, rateOverride: null, arrivedAt: null, doorAt: null, departedAt: null,
+      notes: "Booked by Tell DockClock", packetAt: null, ruleGrace: null, ruleRate: null, demo: false };
+    return { ok: true, kind: "book", appt: appt,
+      summary: "Book " + carrier + " on " + fmtDate(date) + " at " + time + " — " + appt.door + ", " + type.toLowerCase() + (driver ? ", driver " + driver : "") + (ref ? ", ref " + ref : "") + "." };
+  }
+  var m;
+  if((m = c.match(/^check in\s*(.*)$/))){
+    var name1 = (m[1] || "").replace(/door\s+[a-z0-9]+/, "").trim();
+    var door1 = doorFromText(c);
+    var cands1 = tellCandidates(["scheduled"], name1, door1);
+    if(!cands1.length) return { error: "I understood the check-in, but there's no matching booked appointment for today — nothing was saved. Book it first, or check the name and door." };
+    return { ok: true, kind: "checkin", candidateIds: cands1.map(function(a){ return a.id; }), summary: actionSummary("checkin", cands1) };
+  }
+  if((m = c.match(/^(at door|start (?:un)?load\w*)\s*(.*)$/))){
+    var name2 = (m[2] || "").replace(/door\s+[a-z0-9]+/, "").trim();
+    var door2 = doorFromText(c);
+    var cands2 = tellCandidates(["arrived"], name2, door2);
+    if(!cands2.length) return { error: "I understood, but no checked-in truck matches that — nothing was saved. Check the driver in first." };
+    return { ok: true, kind: "atdoor", candidateIds: cands2.map(function(a){ return a.id; }), summary: actionSummary("atdoor", cands2) };
+  }
+  if((m = c.match(/^check out\s*(.*)$/))){
+    var name3 = (m[1] || "").replace(/door\s+[a-z0-9]+/, "").trim();
+    var door3 = doorFromText(c);
+    var cands3 = tellCandidates(["arrived", "atdoor"], name3, door3);
+    if(!cands3.length) return { error: "I understood the check-out, but no truck on site matches that — nothing was saved." };
+    return { ok: true, kind: "checkout", candidateIds: cands3.map(function(a){ return a.id; }), summary: actionSummary("checkout", cands3) };
+  }
+  return { note: true };
+}
+function reviewTell(){
+  var raw = $("tellInput").value;
+  if(!raw || !raw.trim()){ toast("Say or type a sentence first."); return; }
+  var p = parseTell(raw);
+  $("tellNoteMsg").style.display = "none";
+  $("tellConfirm").style.display = "none";
+  if(p.note){
+    pendingTell = null;
+    state.tellNotes.push({ id: uid(), ts: new Date().toISOString(), text: raw });
+    save(); renderTellNotes();
+    var nm = $("tellNoteMsg");
+    nm.textContent = "Couldn't file that one — your exact words are kept as a note below. Nothing else was saved.";
+    nm.style.display = "block";
+    return;
+  }
+  if(p.error){
+    pendingTell = null;
+    var em = $("tellNoteMsg"); em.textContent = p.error; em.style.display = "block";
+    return;
+  }
+  pendingTell = p;
+  $("tellSummary").textContent = p.summary;
+  if(p.candidateIds && p.candidateIds.length > 1){
+    $("tellPick").innerHTML = p.candidateIds.map(function(id){ var a = findAppt(id); return '<option value="'+a.id+'">'+esc(apptLabel(a))+'</option>'; }).join("");
+    $("tellPickWrap").style.display = "block";
+  } else $("tellPickWrap").style.display = "none";
+  $("tellConfirm").style.display = "block";
+}
+function applyTell(){
+  if(!pendingTell) return;
+  var p = pendingTell, nowISO = new Date().toISOString(), msg = "";
+  if(p.kind === "book"){ state.appointments.push(p.appt); msg = "Booked: " + apptLabel(p.appt) + "."; }
+  else {
+    var id = (p.candidateIds.length > 1) ? $("tellPick").value : p.candidateIds[0];
+    var a = findAppt(id); if(!a){ toast("That appointment is gone — nothing saved."); pendingTell = null; return; }
+    if(p.kind === "checkin"){ a.arrivedAt = nowISO; msg = "Checked in " + (a.driver || a.carrier) + " — clock running."; }
+    if(p.kind === "atdoor"){ if(!a.arrivedAt) a.arrivedAt = nowISO; a.doorAt = nowISO; msg = (a.driver || a.carrier) + " is at the door."; }
+    if(p.kind === "checkout"){
+      a.departedAt = nowISO;
+      var r = rulesFor(a); a.ruleGrace = r.grace; a.ruleRate = r.rate;
+      msg = "Checked out " + (a.driver || a.carrier) + ". Detention: " + money(calcDetention(a).charge) + ".";
+    }
+  }
+  pendingTell = null;
+  save(); renderAll();
+  $("tellConfirm").style.display = "none";
+  $("tellWrap").classList.remove("open");
+  toast(msg);
+}
+function renderTellNotes(){
+  var el = $("tellNotes"); if(!el) return;
+  if(!state.tellNotes.length){ el.innerHTML = '<p style="color:var(--muted)">None yet.</p>'; return; }
+  el.innerHTML = state.tellNotes.slice().reverse().map(function(n){
+    return '<div class="appt"><div>🗒️ '+esc(n.text)+'</div><div class="meta">'+fmtDateTimeISO(n.ts)+'</div><div class="row"><button type="button" class="danger" data-act="del-note" data-id="'+n.id+'">Delete note</button></div></div>';
+  }).join("");
+}
+function openTell(){
+  $("tellWrap").classList.add("open");
+  renderTellNotes();
+  $("tellConfirm").style.display = "none";
+  $("tellNoteMsg").style.display = "none";
+  dictate($("tellInput"), function(){ reviewTell(); });
+}
+
+/* ================= global event wiring ================= */
+document.addEventListener("click", function(ev){
+  var t = ev.target;
+  var closest = t && t.closest ? t.closest.bind(t) : null;
+  if(!closest) return;
+  var mic = closest("[data-mic-for],[data-mic-for-class]");
+  if(mic){
+    var input = null;
+    if(mic.getAttribute("data-mic-for")) input = $(mic.getAttribute("data-mic-for"));
+    else input = document.querySelector("." + mic.getAttribute("data-mic-for-class") + '[data-idx="' + mic.getAttribute("data-idx") + '"]');
+    if(input) dictate(input);
+    return;
+  }
+  if(closest("#tellBtn")){ openTell(); return; }
+  var tabBtn = closest("#tabbar button");
+  if(tabBtn){ switchTab(tabBtn.getAttribute("data-tab")); return; }
+  var el = closest("[data-act]");
+  if(!el) return;
+  var act = el.getAttribute("data-act"), id = el.getAttribute("data-id"), idx = el.getAttribute("data-idx");
+  switch(act){
+    case "add-appt": openAppt(null, ui.tab === "calendar" ? ui.calDate : todayKey()); break;
+    case "edit-appt": openAppt(id); break;
+    case "save-appt": saveAppt(); break;
+    case "cancel-appt": $("apptWrap").classList.remove("open"); break;
+    case "delete-appt": askConfirm("Delete this appointment?", "<p>This removes the appointment and its timestamps. You get one Undo right after.</p>", "Delete", function(){ doDelete($("fId").value); }); break;
+    case "check-in": doCheckIn(id); break;
+    case "at-door": doAtDoor(id); break;
+    case "check-out": askCheckOut(id); break;
+    case "packet": doPacket(id); break;
+    case "carrier-packet": doCarrierPacket(); break;
+    case "export-csv": doCSV(); break;
+    case "export-backup": doBackup(); break;
+    case "import-backup": $("backupFile").click(); break;
+    case "load-demo": loadDemo(); break;
+    case "clear-demo": clearDemo(); break;
+    case "reset-all": resetAll(); break;
+    case "save-settings": doSaveSettings(); break;
+    case "add-door": {
+      collectSettings();
+      var nd = $("newDoor").value.trim();
+      if(!nd){ toast("Type a door name first."); break; }
+      if(state.settings.doors.some(function(d){ return d.toLowerCase() === nd.toLowerCase(); })){ toast("That door already exists."); break; }
+      state.settings.doors.push(nd);
+      $("newDoor").value = "";
+      save(); renderAll(); toast("Door added: " + nd);
+      break;
+    }
+    case "remove-door": {
+      var doorName = state.settings.doors[+idx];
+      askConfirm("Remove " + doorName + "?", "<p>Appointments already booked at this door keep their door name on their record — the door just leaves the Settings list.</p>", "Remove door", function(){
+        collectSettings();
+        state.settings.doors.splice(+idx, 1);
+        if(!state.settings.doors.length) state.settings.doors = ["Door 1"];
+        save(); renderAll(); toast("Door removed.");
+      });
+      break;
+    }
+    case "add-rule": {
+      collectSettings();
+      var rc = $("ruleCarrier").value.trim();
+      if(!rc){ toast("Type the carrier name first."); break; }
+      var rg = Math.round(clampNum($("ruleGrace").value, 0, 10080, NaN));
+      var rr = clampNum($("ruleRate").value, 0, 100000, NaN);
+      if(!isFinite(rg) || !isFinite(rr)){ toast("Give the rule a grace (minutes) and a rate ($/hour)."); break; }
+      state.settings.carrierRules = state.settings.carrierRules.filter(function(r){ return r.carrier.toLowerCase() !== rc.toLowerCase(); });
+      state.settings.carrierRules.push({ carrier: rc, graceMin: rg, ratePerHour: rr });
+      $("ruleCarrier").value = ""; $("ruleGrace").value = ""; $("ruleRate").value = "";
+      save(); renderAll(); toast("Carrier rule saved for " + rc + ".");
+      break;
+    }
+    case "remove-rule": state.settings.carrierRules.splice(+idx, 1); save(); renderAll(); toast("Carrier rule removed."); break;
+    case "cal-prev": ui.calDate = addDaysKey(ui.calDate, -1); renderCalendar(); break;
+    case "cal-next": ui.calDate = addDaysKey(ui.calDate, 1); renderCalendar(); break;
+    case "cal-today": ui.calDate = todayKey(); renderCalendar(); break;
+    case "cal-day": ui.calDate = el.getAttribute("data-date"); renderCalendar(); break;
+    case "period-today": ui.period = "today"; renderAnalytics(); break;
+    case "period-week": ui.period = "week"; renderAnalytics(); break;
+    case "confirm-yes": { var fn = confirmFn; closeConfirm(); if(fn) fn(); break; }
+    case "confirm-no": closeConfirm(); break;
+    case "undo-delete":
+      if(state.trash){ state.appointments.push(state.trash); state.trash = null; save(); renderAll(); toast("Appointment restored."); }
+      $("toast").classList.remove("show");
+      break;
+    case "tell-listen": dictate($("tellInput"), function(){ reviewTell(); }); break;
+    case "tell-review": reviewTell(); break;
+    case "tell-save": applyTell(); break;
+    case "tell-discard": pendingTell = null; $("tellConfirm").style.display = "none"; break;
+    case "tell-close": $("tellWrap").classList.remove("open"); break;
+    case "del-note": state.tellNotes = state.tellNotes.filter(function(n){ return n.id !== id; }); save(); renderTellNotes(); break;
+  }
+});
+$("calDate").addEventListener("change", function(){ if(this.value){ ui.calDate = this.value; renderCalendar(); } });
+$("logSearch").addEventListener("input", function(){ renderLog(); });
+$("logStatus").addEventListener("change", function(){ renderLog(); });
+$("backupFile").addEventListener("change", function(){ if(this.files && this.files[0]) doImportFile(this.files[0]); this.value = ""; });
+document.addEventListener("keydown", function(ev){
+  if(ev.key === "Escape"){ $("apptWrap").classList.remove("open"); $("tellWrap").classList.remove("open"); closeConfirm(); }
+});
+window.addEventListener("storage", function(ev){
+  if(ev.key === STORE_KEY){ load(); renderAll(); }
+});
+setInterval(function(){
+  renderHeader();
+  if(ui.tab === "board") renderBoard();
+  if(ui.tab === "analytics") renderAnalytics();
+}, 30000);
+
+/* ================= terms gate & init ================= */
+(function init(){
+  load();
+  save(); /* persist on first run so the stored key always mirrors state (§10 single source of truth) */
+  renderAll();
+  $("verFoot").textContent = APP_VERSION;
+  var agreed = false;
+  try{ agreed = localStorage.getItem(TERMS_KEY) === TERMS_VERSION; }catch(e){}
+  if(agreed){ $("termsWrap").classList.remove("open"); }
+  else {
+    $("termsCheck").addEventListener("change", function(ev){ $("termsAgree").disabled = !ev.target.checked; });
+    $("termsAgree").addEventListener("click", function(){
+      try{ localStorage.setItem(TERMS_KEY, TERMS_VERSION); }catch(e){}
+      $("termsWrap").classList.remove("open");
+    });
+  }
+})();
+</script>
+</body>
+</html>
